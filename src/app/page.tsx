@@ -312,7 +312,7 @@ export default function DashboardPage() {
 
     if (sorted.length === 0) {
       return (
-        <div className="h-64 border border-zinc-200 flex items-center justify-center text-zinc-400 font-mono text-xs select-none">
+        <div className="h-64 border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)] font-mono text-xs select-none">
           NO TRANSACTION DATA AVAILABLE FOR GRAPHING
         </div>
       );
