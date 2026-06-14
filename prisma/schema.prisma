@@ -1,0 +1,119 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String            @id @default(uuid())
+  name          String            @unique
+  email         String?           @unique
+  passwordHash  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  memberships   GroupMembership[]
+  paidExpenses  Expense[]         @relation("PaidExpenses")
+  expenseSplits ExpenseSplit[]
+  resolutions   StagedExpense[]   @relation("ResolvedBy")
+}
+
+model Group {
+  id             String            @id @default(uuid())
+  name           String
+  baseCurrency   String            @default("INR")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  memberships    GroupMembership[]
+  expenses       Expense[]
+  stagedExpenses StagedExpense[]
+}
+
+model GroupMembership {
+  id        String    @id @default(uuid())
+  groupId   String
+  userId    String
+  joinedAt  DateTime
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId, joinedAt, leftAt])
+}
+
+model Expense {
+  id           String   @id @default(uuid())
+  groupId      String
+  description  String
+  amount       Decimal  // Stores the decimal amount
+  currency     String   // E.g., "INR", "USD"
+  exchangeRate Decimal  @default(1.0)
+  dateIncurred DateTime
+  paidById     String
+  splitType    String   // "EQUAL", "UNEQUAL", "PERCENTAGE", "SHARE"
+  notes        String?
+  isSettlement Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy       User           @relation("PaidExpenses", fields: [paidById], references: [id], onDelete: Restrict)
+  splits       ExpenseSplit[]
+  resolvedFrom StagedExpense?
+
+  @@index([groupId, dateIncurred])
+  @@index([paidById])
+}
+
+model ExpenseSplit {
+  id         String   @id @default(uuid())
+  expenseId  String
+  userId     String
+  amount     Decimal
+  splitValue Decimal?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseId, userId])
+  @@index([userId])
+}
+
+model StagedExpense {
+  id              String    @id @default(uuid())
+  groupId         String
+  rawRowData      String    // Raw JSON string of the CSV row
+  dateRaw         String
+  description     String
+  paidByRaw       String
+  amountRaw       String
+  currencyRaw     String?
+  splitTypeRaw    String?
+  splitWithRaw    String?
+  splitDetailsRaw String?
+  notesRaw        String?
+  
+  anomalies       String    // JSON string array of detected anomalies (e.g. '["DUPLICATE"]')
+  anomalyDetails  String    // JSON string describing details of the anomalies
+  status          String    @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "RESOLVED_EDITED"
+  
+  resolvedExpenseId String? @unique
+  resolvedById      String?
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  group           Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  resolvedExpense Expense? @relation(fields: [resolvedExpenseId], references: [id], onDelete: SetNull)
+  resolvedBy      User?    @relation("ResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([groupId, status])
+}
